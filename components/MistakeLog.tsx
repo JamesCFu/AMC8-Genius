@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { Question, Difficulty } from '../types';
-import { ChevronLeft, ChevronDown, ChevronUp, BookX, CheckCircle, XCircle, Calendar, GraduationCap, Eye, RefreshCw, ArrowRight } from 'lucide-react';
+import { ChevronLeft, ChevronDown, ChevronUp, BookX, CheckCircle, XCircle, Calendar, GraduationCap, Eye, RefreshCw, ArrowRight, Play } from 'lucide-react';
 
 interface MistakeLogProps {
   mistakes: Question[];
   onBack: () => void;
   onRemove: (id: string) => void;
+  onPractice: (question: Question) => void;
 }
 
-const MistakeItem: React.FC<{ question: Question; index: number; total: number; onRemove: (id: string) => void }> = ({ question, index, total, onRemove }) => {
+const MistakeItem: React.FC<{ question: Question; index: number; total: number; onRemove: (id: string) => void; onPractice: (q: Question) => void }> = ({ question, index, total, onRemove, onPractice }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [submissionState, setSubmissionState] = useState<'IDLE' | 'CORRECT' | 'INCORRECT' | 'REVEALED'>('IDLE');
@@ -45,13 +46,13 @@ const MistakeItem: React.FC<{ question: Question; index: number; total: number; 
       {/* Header / Summary */}
       <div 
         onClick={handleExpand}
-        className="p-5 cursor-pointer flex justify-between items-center bg-slate-50/50 hover:bg-slate-50"
+        className="p-5 cursor-pointer flex justify-between items-center bg-slate-50/50 hover:bg-slate-50 group"
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-1">
           <span className="flex-shrink-0 w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center font-bold text-slate-600 text-sm">
             {total - index}
           </span>
-          <div>
+          <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className={`text-xs font-bold px-2 py-0.5 rounded text-indigo-700 bg-indigo-50 border border-indigo-100 uppercase tracking-wide`}>
                   {question.topic}
@@ -75,8 +76,19 @@ const MistakeItem: React.FC<{ question: Question; index: number; total: number; 
           </div>
         </div>
         
-        <div className="text-slate-400">
-          {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onPractice(question);
+            }}
+            className="hidden group-hover:flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm z-10"
+          >
+            <Play className="w-3 h-3 fill-current" /> Practice
+          </button>
+          <div className="text-slate-400">
+            {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </div>
         </div>
       </div>
 
@@ -183,7 +195,7 @@ const MistakeItem: React.FC<{ question: Question; index: number; total: number; 
                         onClick={() => setSubmissionState('IDLE')}
                         className="px-3 py-1 bg-white border border-red-200 text-red-700 rounded-md text-xs font-bold hover:bg-red-100 transition-colors"
                       >
-                        Retry
+                        Retry Inline
                       </button>
                     </div>
                   </div>
@@ -229,10 +241,10 @@ const MistakeItem: React.FC<{ question: Question; index: number; total: number; 
                        )}
                        
                        <button 
-                        onClick={handleRetry}
+                        onClick={() => onPractice(question)}
                         className="flex items-center gap-2 text-indigo-600 font-bold text-sm hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors"
                        >
-                         <RefreshCw className="w-4 h-4" /> Practice Again
+                         <Play className="w-4 h-4" /> Practice Again
                        </button>
                      </div>
                   </div>
@@ -244,7 +256,7 @@ const MistakeItem: React.FC<{ question: Question; index: number; total: number; 
   );
 };
 
-export const MistakeLog: React.FC<MistakeLogProps> = ({ mistakes, onBack, onRemove }) => {
+export const MistakeLog: React.FC<MistakeLogProps> = ({ mistakes, onBack, onRemove, onPractice }) => {
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-6 animate-fade-in pb-24">
        <button 
@@ -284,6 +296,7 @@ export const MistakeLog: React.FC<MistakeLogProps> = ({ mistakes, onBack, onRemo
                 index={index} 
                 total={mistakes.length} 
                 onRemove={onRemove}
+                onPractice={onPractice}
              />
           ))}
         </div>

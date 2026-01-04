@@ -117,6 +117,16 @@ export const generateStudyAnalysis = async (stats: UserStats): Promise<StudyReco
     `${h.topic} (${h.difficulty}): ${h.correct ? 'Correct' : 'Incorrect'}`
   ).join('; ');
 
+  // Calculate trends
+  const history = stats.history;
+  const last10 = history.slice(-10);
+  const last10Accuracy = last10.length > 0 
+      ? Math.round((last10.filter(h => h.correct).length / last10.length) * 100) 
+      : 0;
+  const overallAccuracy = stats.total > 0 
+      ? Math.round((stats.correct / stats.total) * 100) 
+      : 0;
+
   const prompt = `
     Analyze this student's AMC 8 math performance and generate a personalized study path.
     
@@ -124,10 +134,15 @@ export const generateStudyAnalysis = async (stats: UserStats): Promise<StudyReco
     Recent Activity: ${recentHistory}
     Total Problems Solved: ${stats.total}
     
+    Trend Analysis:
+    - Recent Accuracy (Last 10): ${last10Accuracy}%
+    - Overall Accuracy: ${overallAccuracy}%
+    - Trend: ${last10Accuracy > overallAccuracy + 10 ? "Significantly Improving" : last10Accuracy < overallAccuracy - 10 ? "Declining" : "Stable"}
+    
     Identify:
     1. Weak areas (Focus Areas)
     2. Strong areas (Strength Areas)
-    3. A specific, encouraging, and tactical piece of advice (max 2 sentences).
+    3. A specific, encouraging, and tactical piece of advice (max 2 sentences). Explicitly mention the recent trend if significant.
     4. A "Next Milestone" goal (short phrase).
 
     Return JSON.

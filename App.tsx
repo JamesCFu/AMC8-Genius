@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { GameState, Question, Topic, Difficulty, UserStats, Attempt } from './types';
-import { generateMathQuestion, generateStudyAnalysis } from './services/questionService';
+import { generateMathQuestion, generateStudyAnalysis, generateMockTest } from './services/questionService';
 import { Dashboard } from './components/Dashboard';
 import { QuizView } from './components/QuizView';
 import { ProfileView } from './components/ProfileView';
 import { MistakeLog } from './components/MistakeLog';
+import { MockTestView } from './components/MockTestView';
+import { Rocket } from 'lucide-react';
 
 const INITIAL_STATS: UserStats = {
   correct: 0,
@@ -25,14 +27,6 @@ const INITIAL_STATS: UserStats = {
   diagnosticCompleted: false
 };
 
-const DIAGNOSTIC_ORDER = [
-  Topic.ALGEBRA,
-  Topic.GEOMETRY,
-  Topic.NUMBER_THEORY,
-  Topic.COUNTING_PROBABILITY,
-  Topic.LOGIC
-];
-
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>('DASHBOARD');
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
@@ -43,8 +37,10 @@ const App: React.FC = () => {
   const [activeTopic, setActiveTopic] = useState<Topic>(Topic.ALGEBRA);
   const [activeDifficulty, setActiveDifficulty] = useState<Difficulty>(Difficulty.MEDIUM);
   
-  // Diagnostic state
-  const [diagnosticIndex, setDiagnosticIndex] = useState(0);
+  // Diagnostic / Mock Test state
+  const [diagnosticQueue, setDiagnosticQueue] = useState<Question[]>([]);
+  const [diagnosticAnswers, setDiagnosticAnswers] = useState<Record<string, number>>({});
+  const [timeRemaining, setTimeRemaining] = useState<number>(0); // Seconds
 
   // Load stats from local storage on mount
   useEffect(() => {
@@ -61,6 +57,25 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('amc8_stats', JSON.stringify(stats));
   }, [stats]);
+
+  // Timer Effect
+  useEffect(() => {
+    let timer: any;
+    if (gameState === 'DIAGNOSTIC' && timeRemaining > 0) {
+      timer = setInterval(() => {
+        setTimeRemaining(prev => {
+          if (prev <= 1) {
+            // Time up logic could go here, for now we just stop at 0
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [gameState, timeRemaining]);
 
   // Update study path every 5 problems or if no path exists
   useEffect(() => {
@@ -100,13 +115,15 @@ const App: React.FC = () => {
   };
 
   const startDiagnostic = async () => {
-    setDiagnosticIndex(0);
-    setGameState('DIAGNOSTIC');
     setLoading(true);
-    // Start with first topic
+    setGameState('DIAGNOSTIC');
+    setDiagnosticAnswers({});
+    setTimeRemaining(40 * 60); // 40 minutes in seconds
+
     try {
-      const question = await generateMathQuestion(DIAGNOSTIC_ORDER[0], Difficulty.MEDIUM);
-      setCurrentQuestion(question);
+      // Generate full 25-question mock test
+      const queue = await generateMockTest();
+      setDiagnosticQueue(queue);
     } catch (error) {
       console.error("Diagnostic start failed", error);
       setGameState('DASHBOARD');
@@ -115,27 +132,22 @@ const App: React.FC = () => {
     }
   };
 
+  const handlePracticeMistake = (question: Question) => {
+    setCurrentQuestion(question);
+    setActiveTopic(question.topic);
+    setActiveDifficulty(question.difficulty);
+    setGameState('QUIZ');
+  };
+
   const handleNextQuestion = async () => {
     setLoading(true);
     setCurrentQuestion(null);
     
     try {
-      if (gameState === 'DIAGNOSTIC') {
-        const nextIndex = diagnosticIndex + 1;
-        if (nextIndex < DIAGNOSTIC_ORDER.length) {
-          setDiagnosticIndex(nextIndex);
-          const question = await generateMathQuestion(DIAGNOSTIC_ORDER[nextIndex], Difficulty.MEDIUM);
-          setCurrentQuestion(question);
-        } else {
-          // Diagnostic complete
-          setStats(prev => ({ ...prev, diagnosticCompleted: true }));
-          setGameState('DASHBOARD');
-        }
-      } else {
-        // Normal Quiz
-        const question = await generateMathQuestion(activeTopic, activeDifficulty);
-        setCurrentQuestion(question);
-      }
+      // Normal Quiz (random generation based on current active settings)
+      // If coming from mistake practice, we continue generating similar questions
+      const question = await generateMathQuestion(activeTopic, activeDifficulty);
+      setCurrentQuestion(question);
     } catch (error) {
        console.error("Failed to load next question", error);
     } finally {
@@ -150,28 +162,16 @@ const App: React.FC = () => {
       const newStreak = isCorrect ? prev.streak + 1 : 0;
       
       // Calculate XP
-      let xpGain = 1;
-      if (isCorrect) {
-        if (gameState === 'DIAGNOSTIC') xpGain = 25;
-        else {
-           xpGain = (
-            activeDifficulty === Difficulty.EASY ? 10 :
-            activeDifficulty === Difficulty.MEDIUM ? 20 :
-            activeDifficulty === Difficulty.HARD ? 35 : 50
-          );
-        }
-      }
+      let xpGain = isCorrect ? (
+          activeDifficulty === Difficulty.EASY ? 10 :
+          activeDifficulty === Difficulty.MEDIUM ? 20 :
+          activeDifficulty === Difficulty.HARD ? 35 : 50
+        ) : 1;
 
       // Calculate Mastery Change
       const topic = currentQuestion.topic;
       const currentMastery = prev.masteryByTopic[topic] || 0;
-      let masteryChange = 0;
-      if (gameState === 'DIAGNOSTIC') {
-        // Bigger jumps for diagnostic
-        masteryChange = isCorrect ? 30 : 10; 
-      } else {
-        masteryChange = isCorrect ? 5 : -2;
-      }
+      let masteryChange = isCorrect ? 5 : -2;
       
       const newMastery = Math.min(100, Math.max(0, currentMastery + masteryChange));
 
@@ -186,8 +186,7 @@ const App: React.FC = () => {
       // Handle Mistake Log
       let newMistakes = prev.mistakes;
       if (!isCorrect) {
-        // Only add if not already in mistakes (prevent duplicates if user gets same random question twice)
-        // We use the question ID or problem text to check uniqueness
+        // Only add if not already in mistakes
         const alreadyExists = prev.mistakes.some(m => m.id === currentQuestion.id || m.problemText === currentQuestion.problemText);
         if (!alreadyExists) {
             newMistakes = [currentQuestion, ...prev.mistakes];
@@ -211,6 +210,62 @@ const App: React.FC = () => {
     });
   };
 
+  // Mock Test Specific Handlers
+  const handleMockAnswer = (questionId: string, optionIndex: number) => {
+    setDiagnosticAnswers(prev => ({
+      ...prev,
+      [questionId]: optionIndex
+    }));
+  };
+
+  const handleMockSubmit = () => {
+    let correctCount = 0;
+    let xpGained = 0;
+    const newHistory: Attempt[] = [];
+    let newMistakes = [...stats.mistakes];
+    const newMastery = { ...stats.masteryByTopic };
+
+    diagnosticQueue.forEach(q => {
+      const selected = diagnosticAnswers[q.id];
+      const isCorrect = selected === q.correctOptionIndex;
+      
+      if (isCorrect) {
+        correctCount++;
+        xpGained += 20; // 20 XP per correct mock answer
+        // Update mastery slightly
+        newMastery[q.topic] = Math.min(100, (newMastery[q.topic] || 0) + 3);
+      } else {
+         newMastery[q.topic] = Math.max(0, (newMastery[q.topic] || 0) - 1);
+         // Add to mistakes if unique
+         if (!newMistakes.some(m => m.id === q.id)) {
+            newMistakes.push(q);
+         }
+      }
+
+      newHistory.push({
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        topic: q.topic,
+        difficulty: q.difficulty,
+        correct: isCorrect
+      });
+    });
+
+    setStats(prev => ({
+      ...prev,
+      correct: prev.correct + correctCount,
+      total: prev.total + diagnosticQueue.length,
+      xp: prev.xp + xpGained + 50, // Bonus for finishing
+      level: Math.floor((prev.xp + xpGained + 50) / 100) + 1,
+      masteryByTopic: newMastery,
+      history: [...prev.history, ...newHistory],
+      mistakes: newMistakes,
+      diagnosticCompleted: true
+    }));
+
+    setGameState('REVIEW');
+  };
+
   const handleRemoveMistake = (id: string) => {
     setStats(prev => ({
       ...prev,
@@ -222,7 +277,7 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-indigo-100 selection:text-indigo-800">
       
       {/* Navbar */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer group" onClick={() => setGameState('DASHBOARD')}>
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-lg group-hover:bg-indigo-700 transition-colors">
@@ -233,7 +288,17 @@ const App: React.FC = () => {
             </h1>
           </div>
           
-          <div className="flex items-center gap-4 text-sm font-medium">
+          <div className="flex items-center gap-3 md:gap-4 text-sm font-medium">
+             {gameState !== 'DIAGNOSTIC' && gameState !== 'REVIEW' && (
+               <button 
+                 onClick={startDiagnostic}
+                 className="flex items-center gap-2 bg-slate-900 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg font-bold shadow-md hover:bg-slate-800 hover:shadow-lg transition-all text-xs uppercase tracking-wide mr-1"
+               >
+                 <Rocket className="w-3 h-3 md:w-4 md:h-4" /> 
+                 <span className="hidden sm:inline">Mock Test</span>
+               </button>
+             )}
+
              <button 
                onClick={() => setGameState('PROFILE')}
                className="hidden md:flex items-center gap-1 text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 hover:bg-slate-200 hover:border-slate-300 transition-all cursor-pointer"
@@ -270,14 +335,27 @@ const App: React.FC = () => {
             mistakes={stats.mistakes}
             onBack={() => setGameState('DASHBOARD')}
             onRemove={handleRemoveMistake}
+            onPractice={handlePracticeMistake}
           />
         )}
 
-        {(gameState === 'QUIZ' || gameState === 'DIAGNOSTIC') && currentQuestion && (
+        {(gameState === 'DIAGNOSTIC' || gameState === 'REVIEW') && diagnosticQueue.length > 0 && (
+           <MockTestView 
+             questions={diagnosticQueue}
+             timerValue={timeRemaining}
+             isReviewMode={gameState === 'REVIEW'}
+             userAnswers={diagnosticAnswers}
+             onAnswer={handleMockAnswer}
+             onSubmit={handleMockSubmit}
+             onExit={() => setGameState('DASHBOARD')}
+           />
+        )}
+
+        {gameState === 'QUIZ' && currentQuestion && (
           <QuizView 
             question={currentQuestion} 
             loading={loading}
-            isDiagnostic={gameState === 'DIAGNOSTIC'}
+            isDiagnostic={false}
             onAnswer={handleAnswer}
             onNext={handleNextQuestion}
             onExit={() => setGameState('DASHBOARD')}
@@ -285,7 +363,7 @@ const App: React.FC = () => {
         )}
         
         {/* Loading state for initial transition if needed */}
-        {(gameState === 'QUIZ' || gameState === 'DIAGNOSTIC') && !currentQuestion && loading && (
+        {(gameState === 'QUIZ' || gameState === 'DIAGNOSTIC') && !currentQuestion && loading && diagnosticQueue.length === 0 && (
            <div className="flex justify-center items-center h-[50vh]">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
            </div>

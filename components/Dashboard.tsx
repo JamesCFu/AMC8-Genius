@@ -1,10 +1,12 @@
 import React from 'react';
 import { Topic, Difficulty, UserStats } from '../types';
+import { QUESTIONS_DB } from '../data/questions';
 import { 
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-  LineChart, Line, CartesianGrid
+  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line
 } from 'recharts';
-import { BookOpen, Trophy, Target, Zap, Activity, Brain, TrendingUp, AlertCircle, Shuffle, BookX, Sparkles } from 'lucide-react';
+import { BookOpen, Trophy, Target, Zap, Activity, Brain, TrendingUp, AlertCircle, Shuffle, BookX, Sparkles, BarChart2, Database } from 'lucide-react';
 
 interface DashboardProps {
   stats: UserStats;
@@ -13,23 +15,56 @@ interface DashboardProps {
   onOpenMistakes: () => void;
 }
 
-const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088FE'];
+const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088FE', '#a0a0a0'];
+
+// Helper to abbreviate topic names for charts
+const getShortTopic = (topic: string) => {
+  if (topic === Topic.ALGEBRA) return 'Alg';
+  if (topic === Topic.GEOMETRY) return 'Geo';
+  if (topic === Topic.NUMBER_THEORY) return 'NT';
+  if (topic === Topic.COUNTING_PROBABILITY) return 'C&P';
+  if (topic === Topic.LOGIC) return 'Logic';
+  return 'Mix';
+};
 
 export const Dashboard: React.FC<DashboardProps> = ({ stats, onStartQuiz, onStartDiagnostic, onOpenMistakes }) => {
   const [selectedTopic, setSelectedTopic] = React.useState<Topic>(Topic.MIXED);
   const [selectedDifficulty, setSelectedDifficulty] = React.useState<Difficulty>(Difficulty.MEDIUM);
 
-  // Filter out MIXED for chart data
-  const masteryData = Object.entries(stats.masteryByTopic)
+  // 1. Prepare Radar Chart Data (Mastery Profile)
+  const radarData = Object.entries(stats.masteryByTopic)
     .filter(([topic]) => topic !== Topic.MIXED)
-    .map(([topic, score], index) => ({
-      name: topic.split(' ')[0],
+    .map(([topic, score]) => ({
+      subject: getShortTopic(topic),
       fullTopic: topic,
-      score: score,
-      color: COLORS[index % COLORS.length]
+      A: score,
+      fullMark: 100,
     }));
 
-  // Process history for trend line (running average of last 20)
+  // 2. Prepare Scatter Chart Data (Effort vs Accuracy)
+  const scatterData = React.useMemo(() => {
+    const topicAggregates: Record<string, { attempts: number; correct: number }> = {};
+    
+    stats.history.forEach(attempt => {
+      if (attempt.topic === Topic.MIXED) return;
+      if (!topicAggregates[attempt.topic]) {
+        topicAggregates[attempt.topic] = { attempts: 0, correct: 0 };
+      }
+      topicAggregates[attempt.topic].attempts += 1;
+      if (attempt.correct) topicAggregates[attempt.topic].correct += 1;
+    });
+
+    return Object.entries(topicAggregates).map(([topic, data], index) => ({
+      name: getShortTopic(topic),
+      fullTopic: topic,
+      x: data.attempts, // Volume/Effort
+      y: Math.round((data.correct / data.attempts) * 100), // Accuracy
+      z: 100, // Bubble size
+      fill: COLORS[index % COLORS.length]
+    }));
+  }, [stats.history]);
+
+  // 3. Prepare Trend Data (Running Average)
   const historyData = React.useMemo(() => {
     if (stats.history.length === 0) return [];
     
@@ -47,8 +82,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, onStartQuiz, onStar
   const recommendedTopics = stats.studyAdvice?.focusAreas || [];
   const strengthTopics = stats.studyAdvice?.strengthAreas || [];
 
+  // Custom Tooltip for Scatter Chart
+  const CustomScatterTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-white p-3 border border-slate-200 shadow-lg rounded-lg">
+          <p className="font-bold text-slate-800 text-sm mb-1">{data.fullTopic}</p>
+          <p className="text-xs text-slate-600">Attempts: {data.x}</p>
+          <p className="text-xs text-indigo-600 font-bold">Accuracy: {data.y}%</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-6 space-y-8 animate-fade-in">
+    <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-8 animate-fade-in">
       
       {/* Welcome / Diagnostic Prompt */}
       {!stats.diagnosticCompleted && (
@@ -156,14 +206,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, onStartQuiz, onStar
         </div>
       )}
 
-      {/* Main Controls & Charts */}
+      {/* Main Controls & Visual Analytics */}
       <div className="grid lg:grid-cols-3 gap-8">
         
         {/* Practice Config */}
         <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-lg border border-indigo-50 h-fit">
-          <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center">
-            <BookOpen className="mr-2 text-indigo-600" /> Practice Lab
-          </h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-slate-800 flex items-center">
+              <BookOpen className="mr-2 text-indigo-600" /> Practice Lab
+            </h2>
+            <span className="text-xs font-semibold bg-slate-100 text-slate-500 px-2 py-1 rounded-full border border-slate-200 flex items-center gap-1">
+               <Database className="w-3 h-3" /> {QUESTIONS_DB.length} Questions
+            </span>
+          </div>
           
           <div className="space-y-5">
              <button 
@@ -224,32 +279,81 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, onStartQuiz, onStar
           </div>
         </div>
 
-        {/* Charts Column */}
-        <div className="lg:col-span-2 space-y-6">
+        {/* Analytics Charts Column */}
+        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
           
-          {/* Mastery Chart */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h3 className="text-sm font-bold text-slate-500 uppercase mb-4">Topic Mastery</h3>
-            <div className="h-[200px] w-full">
+          {/* Radar Chart (Mastery Profile) */}
+          <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center min-h-[300px]">
+            <h3 className="text-sm font-bold text-slate-500 uppercase mb-2 flex items-center gap-2">
+              <Target className="w-4 h-4" /> Skill Profile
+            </h3>
+            <div className="w-full h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={masteryData} layout="vertical" margin={{ left: 40, right: 20 }}>
-                  <XAxis type="number" domain={[0, 100]} hide />
-                  <YAxis dataKey="name" type="category" width={80} tick={{fontSize: 11, fill: '#64748b'}} interval={0} />
-                  <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '8px', border:'none', boxShadow:'0 4px 6px -1px rgba(0,0,0,0.1)'}} />
-                  <Bar dataKey="score" radius={[0, 4, 4, 0]} barSize={16}>
-                    {masteryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
+                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
+                  <PolarGrid stroke="#e2e8f0" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                  <Radar
+                    name="Mastery"
+                    dataKey="A"
+                    stroke="#4f46e5"
+                    strokeWidth={2}
+                    fill="#6366f1"
+                    fillOpacity={0.3}
+                  />
+                  <Tooltip 
+                     contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}}
+                     formatter={(value: number) => [`${value}/100`, 'Mastery']}
+                  />
+                </RadarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Trend Chart */}
+          {/* Scatter Chart (Volume vs Accuracy) */}
+          <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center min-h-[300px]">
+            <h3 className="text-sm font-bold text-slate-500 uppercase mb-2 flex items-center gap-2">
+              <BarChart2 className="w-4 h-4" /> Effort vs. Accuracy
+            </h3>
+            {scatterData.length > 0 ? (
+              <div className="w-full h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis 
+                      type="number" 
+                      dataKey="x" 
+                      name="Attempts" 
+                      tick={{fontSize: 10}} 
+                      label={{ value: 'Problems Solved', position: 'insideBottom', offset: -10, fontSize: 10, fill: '#94a3b8' }} 
+                    />
+                    <YAxis 
+                      type="number" 
+                      dataKey="y" 
+                      name="Accuracy" 
+                      unit="%" 
+                      domain={[0, 100]} 
+                      tick={{fontSize: 10}}
+                    />
+                    <ZAxis type="number" dataKey="z" range={[60, 200]} />
+                    <Tooltip content={<CustomScatterTooltip />} cursor={{ strokeDasharray: '3 3' }} />
+                    <Scatter name="Topics" data={scatterData} fill="#8884d8" />
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="text-center text-slate-400 text-sm p-8">
+                Solve more problems across different topics to see correlation data.
+              </div>
+            )}
+          </div>
+
+          {/* Trend Chart (Running Average) - Full Width below splits */}
           {historyData.length > 2 && (
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <h3 className="text-sm font-bold text-slate-500 uppercase mb-4">Performance Trend (Last 20)</h3>
+            <div className="md:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+              <h3 className="text-sm font-bold text-slate-500 uppercase mb-4 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" /> Recent Performance Trend (Last 20)
+              </h3>
               <div className="h-[150px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={historyData}>
@@ -261,7 +365,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, onStartQuiz, onStar
                       formatter={(v) => [`${v}%`, 'Avg Accuracy']}
                       contentStyle={{borderRadius: '8px'}}
                     />
-                    <Line type="monotone" dataKey="average" stroke="#4f46e5" strokeWidth={3} dot={false} activeDot={{r: 6}} />
+                    <Line type="monotone" dataKey="average" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{r: 6}} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>

@@ -51,6 +51,25 @@ export const generateMathQuestion = async (topic: Topic, difficulty: Difficulty)
   };
 };
 
+export const generateMockTest = async (): Promise<Question[]> => {
+  // Simulate setup time
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  const shuffle = (array: Question[]) => array.sort(() => 0.5 - Math.random());
+
+  const easyQs = QUESTIONS_DB.filter(q => q.difficulty === Difficulty.EASY);
+  const mediumQs = QUESTIONS_DB.filter(q => q.difficulty === Difficulty.MEDIUM);
+  const hardQs = QUESTIONS_DB.filter(q => q.difficulty === Difficulty.HARD);
+
+  // Requirement: 10 Easy, 10 Medium, 5 Hard (Total 25)
+  const selectedEasy = shuffle(easyQs).slice(0, 10);
+  const selectedMedium = shuffle(mediumQs).slice(0, 10);
+  const selectedHard = shuffle(hardQs).slice(0, 5);
+
+  // Combine and return. AMC 8 usually gets progressively harder.
+  return [...selectedEasy, ...selectedMedium, ...selectedHard];
+};
+
 export const generateStudyAnalysis = async (stats: UserStats): Promise<StudyRecommendation> => {
   await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -71,19 +90,36 @@ export const generateStudyAnalysis = async (stats: UserStats): Promise<StudyReco
     .slice(-2)
     .reverse();
 
-  // Generate rule-based advice
+  // Generate rule-based advice with trend analysis
   let advice = "";
   const totalSolved = stats.total;
   const accuracy = totalSolved > 0 ? (stats.correct / totalSolved) : 0;
+  
+  // Trend Analysis: Compare last 10 vs overall
+  const history = stats.history;
+  const last10 = history.slice(-10);
+  const last10Count = last10.length;
+  const last10Correct = last10.filter(h => h.correct).length;
+  const last10Accuracy = last10Count > 0 ? (last10Correct / last10Count) : 0;
 
   if (totalSolved < 5) {
     advice = "You're just getting started! Try 'Mixed Practice' to explore all types of problems.";
-  } else if (accuracy < 0.4) {
-    advice = "Don't worry about errors. Focus on understanding the 'Why' in the solution for every mistake you make.";
-  } else if (accuracy > 0.8) {
-    advice = "Your accuracy is fantastic! It's time to challenge yourself with Competition Level problems.";
+  } else if (totalSolved >= 10) {
+      // Analyze Trend
+      if (last10Accuracy > accuracy + 0.15) {
+          advice = `You're on a roll! Your recent accuracy (${Math.round(last10Accuracy * 100)}%) is significantly higher than your average. You're ready for harder problems.`;
+      } else if (last10Accuracy < accuracy - 0.15) {
+          advice = `You've hit a rough patch recently (${Math.round(last10Accuracy * 100)}% accuracy). Consider reviewing your Mistake Log before moving on.`;
+      } else if (accuracy < 0.4) {
+          advice = "Don't worry about errors. Focus on understanding the 'Why' in the solution for every mistake you make.";
+      } else if (accuracy > 0.8) {
+          advice = "Your consistency is fantastic! It's time to challenge yourself with Competition Level problems.";
+      } else {
+          advice = `Consistent practice is key. You are doing well in ${strengthAreas[0] || 'general math'}, so try to boost your ${focusAreas[0]} skills next.`;
+      }
   } else {
-    advice = `Consistent practice is key. You are doing well in ${strengthAreas[0] || 'general math'}, so try to boost your ${focusAreas[0]} skills next.`;
+     // Between 5 and 10 problems
+     advice = `Keep going! Try to focus on ${focusAreas[0]} problems to build a strong foundation.`;
   }
 
   const milestones = [

@@ -8,6 +8,17 @@ interface ProfileViewProps {
   onBack: () => void;
 }
 
+const getRankTitle = (level: number) => {
+  if (level < 3) return "Math Novice";
+  if (level < 6) return "Apprentice";
+  if (level < 10) return "Problem Solver";
+  if (level < 15) return "Number Cruncher";
+  if (level < 20) return "Logic Master";
+  if (level < 30) return "Arithmancer";
+  if (level < 50) return "Geometry Guru";
+  return "AMC 8 Legend";
+};
+
 export const ProfileView: React.FC<ProfileViewProps> = ({ stats, onResetData, onBack }) => {
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -30,7 +41,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ stats, onResetData, on
             <div className="text-center md:text-left">
               <h1 className="text-3xl font-bold mb-2">Student Profile</h1>
               <div className="flex items-center justify-center md:justify-start gap-4 text-indigo-100 text-sm">
-                <span className="flex items-center gap-1"><User className="w-4 h-4" /> Math Whiz</span>
+                <span className="flex items-center gap-1 font-semibold bg-indigo-500/50 px-3 py-1 rounded-full border border-indigo-400">
+                  <User className="w-4 h-4" /> {getRankTitle(stats.level)}
+                </span>
                 <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> AMC 8 Aspirant</span>
               </div>
             </div>

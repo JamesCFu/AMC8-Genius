@@ -1,17 +1,36 @@
 import React, { useState } from 'react';
 import { Question, Difficulty } from '../types';
-import { ArrowRight, Lightbulb, CheckCircle, XCircle, Home, BrainCircuit } from 'lucide-react';
+import { ArrowRight, Lightbulb, CheckCircle, XCircle, Home, BrainCircuit, Clock, Hourglass } from 'lucide-react';
 
 interface QuizViewProps {
   question: Question;
   loading: boolean;
   isDiagnostic?: boolean;
+  timerValue?: number; // in seconds
+  currentQuestionIndex?: number;
+  totalQuestions?: number;
   onAnswer: (correct: boolean) => void;
   onNext: () => void;
   onExit: () => void;
 }
 
-export const QuizView: React.FC<QuizViewProps> = ({ question, loading, isDiagnostic, onAnswer, onNext, onExit }) => {
+const formatTime = (seconds: number) => {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+};
+
+export const QuizView: React.FC<QuizViewProps> = ({ 
+  question, 
+  loading, 
+  isDiagnostic, 
+  timerValue,
+  currentQuestionIndex,
+  totalQuestions,
+  onAnswer, 
+  onNext, 
+  onExit 
+}) => {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showHint, setShowHint] = useState(false);
@@ -22,7 +41,7 @@ export const QuizView: React.FC<QuizViewProps> = ({ question, loading, isDiagnos
       <div className="max-w-3xl mx-auto p-6 flex flex-col items-center justify-center min-h-[60vh]">
         <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-6"></div>
         <h2 className="text-xl font-medium text-slate-700 animate-pulse">
-          {isDiagnostic ? 'Selecting Diagnostic Problem...' : 'Retrieving from Archives...'}
+          {isDiagnostic ? 'Selecting Mock Test Problem...' : 'Retrieving from Archives...'}
         </h2>
         <p className="text-slate-500 mt-2">Opening the {question?.topic || 'math'} vault...</p>
       </div>
@@ -56,20 +75,39 @@ export const QuizView: React.FC<QuizViewProps> = ({ question, loading, isDiagnos
             <Home className="w-4 h-4" /> Dashboard
           </button>
         ) : (
-          <div className="flex items-center gap-2 text-indigo-600 font-bold">
-            <BrainCircuit className="w-5 h-5" /> Diagnostic Mode
+          <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 w-full">
+            <div className="flex items-center gap-2 text-indigo-600 font-bold">
+               <BrainCircuit className="w-5 h-5" /> Mock Test
+            </div>
+            
+            {/* Diagnostic/Mock Info */}
+            <div className="flex items-center gap-4 flex-1 justify-end">
+               {timerValue !== undefined && (
+                 <div className={`flex items-center gap-2 px-3 py-1 rounded-full font-mono font-bold ${timerValue < 300 ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-700'}`}>
+                   <Clock className="w-4 h-4" />
+                   {formatTime(timerValue)}
+                 </div>
+               )}
+               {currentQuestionIndex && totalQuestions && (
+                  <div className="text-sm font-bold text-slate-500">
+                    Q{currentQuestionIndex} / {totalQuestions}
+                  </div>
+               )}
+            </div>
           </div>
         )}
         
-        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide
-          ${question.difficulty === Difficulty.EASY ? 'bg-green-100 text-green-700' : 
-            question.difficulty === Difficulty.MEDIUM ? 'bg-yellow-100 text-yellow-700' : 
-            question.difficulty === Difficulty.HARD ? 'bg-orange-100 text-orange-700' :
-            'bg-purple-100 text-purple-700'
-          }`}
-        >
-          {question.difficulty}
-        </span>
+        {!isDiagnostic && (
+          <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide
+            ${question.difficulty === Difficulty.EASY ? 'bg-green-100 text-green-700' : 
+              question.difficulty === Difficulty.MEDIUM ? 'bg-yellow-100 text-yellow-700' : 
+              question.difficulty === Difficulty.HARD ? 'bg-orange-100 text-orange-700' :
+              'bg-purple-100 text-purple-700'
+            }`}
+          >
+            {question.difficulty}
+          </span>
+        )}
       </div>
 
       {/* Question Card */}
@@ -181,7 +219,7 @@ export const QuizView: React.FC<QuizViewProps> = ({ question, loading, isDiagnos
                 }}
                 className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-lg"
               >
-                {isDiagnostic ? 'Next Diagnostic Question' : 'Next Problem'} <ArrowRight className="w-5 h-5" />
+                {isDiagnostic && currentQuestionIndex === totalQuestions ? 'Finish Mock Test' : (isDiagnostic ? 'Next Question' : 'Next Problem')} <ArrowRight className="w-5 h-5" />
               </button>
             </div>
           )}
@@ -197,4 +235,3 @@ export const QuizView: React.FC<QuizViewProps> = ({ question, loading, isDiagnos
     </div>
   );
 };
-
