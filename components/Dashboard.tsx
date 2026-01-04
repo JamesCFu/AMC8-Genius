@@ -148,31 +148,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, onStartQuiz, onStar
       </div>
 
       {/* AI Study Path Section */}
-      {stats.diagnosticCompleted && (
-        <div className="bg-white rounded-2xl shadow-sm border border-indigo-100 p-6">
-          <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <Brain className="text-indigo-600" /> Your Personalized Study Path
-          </h2>
-          
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Focus Areas */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-orange-500" /> Focus Areas
-              </h3>
-              {recommendedTopics.length > 0 ? (
-                <div className="space-y-3">
-                  {recommendedTopics.map(topic => (
-                    <div key={topic} className="p-3 bg-orange-50 border border-orange-100 rounded-lg flex justify-between items-center group cursor-pointer hover:bg-orange-100 transition-colors"
-                         onClick={() => { setSelectedTopic(topic); }}>
-                      <span className="text-orange-800 font-medium text-sm">{topic}</span>
-                      <button className="text-xs bg-white px-2 py-1 rounded text-orange-600 border border-orange-200">Practice</button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-slate-400">Complete more problems to detect weak areas.</p>
-              )}
+      <div className="bg-slate-50 rounded-xl p-5 border border-slate-100">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Study Coach Insight</h3>
+              <p className="text-slate-700 italic leading-relaxed">"{stats.studyAdvice?.advice || "Keep practicing to generate insights."}"</p>
+              <div className="mt-4 pt-4 border-t border-slate-200">
+                 <span className="text-xs text-slate-500 font-bold uppercase">Next Milestone</span>
+                 <p className="text-indigo-600 font-medium">{stats.studyAdvice?.nextMilestone || "Finish Diagnostic"}</p>
+              </div>
             </div>
 
             {/* AI Advice */}
