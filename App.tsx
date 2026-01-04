@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GameState, Question, Topic, Difficulty, UserStats, Attempt } from './types';
-import { generateMathQuestion, generateStudyAnalysis, generateMockTest } from './services/questionService';
+// ENSURE THIS IMPORT POINTS TO questionService, NOT geminiService
+import { generateMathQuestion, generateStudyAnalysis, generateMockTest } from './services/questionService'; 
 import { Dashboard } from './components/Dashboard';
 import { QuizView } from './components/QuizView';
 import { ProfileView } from './components/ProfileView';
@@ -8,6 +9,7 @@ import { MistakeLog } from './components/MistakeLog';
 import { MockTestView } from './components/MockTestView';
 import { Rocket } from 'lucide-react';
 
+// ... rest of the App.tsx code remains exactly as provided in your previous upload ...
 const INITIAL_STATS: UserStats = {
   correct: 0,
   total: 0,
