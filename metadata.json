@@ -1,0 +1,5 @@
+{
+  "name": "AMC8 Genius",
+  "description": "An adaptive, AI-powered study companion for the AMC 8 mathematics competition. Features personalized problem generation, instant feedback, and detailed solution explanations.",
+  "requestFramePermissions": []
+}
