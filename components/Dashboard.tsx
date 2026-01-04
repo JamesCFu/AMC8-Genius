@@ -6,7 +6,7 @@ import {
   ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line
 } from 'recharts';
-import { BookOpen, Trophy, Target, Zap, Activity, Brain, TrendingUp, AlertCircle, Shuffle, BookX, Sparkles, BarChart2, Database } from 'lucide-react';
+import { BookOpen, Trophy, Target, Zap, Activity, Brain, TrendingUp, Shuffle, BookX, Sparkles, BarChart2, Database } from 'lucide-react';
 
 interface DashboardProps {
   stats: UserStats;
@@ -79,7 +79,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, onStartQuiz, onStar
     });
   }, [stats.history]);
 
-  const recommendedTopics = stats.studyAdvice?.focusAreas || [];
   const strengthTopics = stats.studyAdvice?.strengthAreas || [];
 
   // Custom Tooltip for Scatter Chart
@@ -147,46 +146,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, onStartQuiz, onStar
         </div>
       </div>
 
-      {/* AI Study Path Section */}
+      {/* Study Coach Insight Section */}
       <div className="bg-slate-50 rounded-xl p-5 border border-slate-100">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Study Coach Insight</h3>
-              <p className="text-slate-700 italic leading-relaxed">"{stats.studyAdvice?.advice || "Keep practicing to generate insights."}"</p>
-              <div className="mt-4 pt-4 border-t border-slate-200">
-                 <span className="text-xs text-slate-500 font-bold uppercase">Next Milestone</span>
-                 <p className="text-indigo-600 font-medium">{stats.studyAdvice?.nextMilestone || "Finish Diagnostic"}</p>
-              </div>
-            </div>
-
-            {/* AI Advice */}
-            <div className="bg-slate-50 rounded-xl p-5 border border-slate-100">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">AI Coach Insight</h3>
-              <p className="text-slate-700 italic leading-relaxed">"{stats.studyAdvice?.advice || "Keep practicing to generate insights."}"</p>
-              <div className="mt-4 pt-4 border-t border-slate-200">
-                 <span className="text-xs text-slate-500 font-bold uppercase">Next Milestone</span>
-                 <p className="text-indigo-600 font-medium">{stats.studyAdvice?.nextMilestone || "Finish Diagnostic"}</p>
-              </div>
-            </div>
-
-             {/* Strengths */}
-             <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-green-500" /> Strengths
-              </h3>
-              {strengthTopics.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {strengthTopics.map(topic => (
-                    <span key={topic} className="px-3 py-1 bg-green-50 text-green-700 text-sm font-medium rounded-full border border-green-100">
-                      {topic}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-slate-400">Keep going to establish strengths!</p>
-              )}
-            </div>
-          </div>
+        <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Study Coach Insight</h3>
+        <p className="text-slate-700 italic leading-relaxed">"{stats.studyAdvice?.advice || "Keep practicing to generate insights."}"</p>
+        <div className="mt-4 pt-4 border-t border-slate-200">
+            <span className="text-xs text-slate-500 font-bold uppercase">Next Milestone</span>
+            <p className="text-indigo-600 font-medium">{stats.studyAdvice?.nextMilestone || "Finish Diagnostic"}</p>
         </div>
-      )}
+      </div>
+
+      {/* Strengths Section */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-green-500" /> Strengths
+        </h3>
+        {strengthTopics.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {strengthTopics.map(topic => (
+              <span key={topic} className="px-3 py-1 bg-green-50 text-green-700 text-sm font-medium rounded-full border border-green-100">
+                {topic}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-400">Keep going to establish strengths!</p>
+        )}
+      </div>
 
       {/* Main Controls & Visual Analytics */}
       <div className="grid lg:grid-cols-3 gap-8">
