@@ -1,135 +1,129 @@
 import { Difficulty, Topic, Question, UserStats, StudyRecommendation } from '../types';
 import { QUESTIONS_DB } from '../data/questions';
 
+/**
+ * Generates a question from the local static database.
+ * Simulates a small network delay for better UX.
+ */
 export const generateMathQuestion = async (topic: Topic, difficulty: Difficulty): Promise<Question> => {
-  // Simulate network delay for realism
-  await new Promise(resolve => setTimeout(resolve, 600));
+  // Simulate "thinking" time
+  await new Promise(resolve => setTimeout(resolve, 400));
 
-  // Filter questions
   let candidates: Question[] = [];
 
   const isMixedDifficulty = difficulty === Difficulty.COMPETITION;
 
+  // Filter based on Topic
   if (topic === Topic.MIXED) {
-     if (isMixedDifficulty) {
-        // Topic: Mixed, Difficulty: Mixed -> All questions
-        candidates = QUESTIONS_DB;
-     } else {
-        // Topic: Mixed, Difficulty: Specific
-        candidates = QUESTIONS_DB.filter(q => q.difficulty === difficulty);
-     }
+     candidates = QUESTIONS_DB;
   } else {
-     if (isMixedDifficulty) {
-        // Topic: Specific, Difficulty: Mixed -> All questions for this topic
-        candidates = QUESTIONS_DB.filter(q => q.topic === topic);
-     } else {
-        // Topic: Specific, Difficulty: Specific
-        candidates = QUESTIONS_DB.filter(q => q.topic === topic && q.difficulty === difficulty);
-     }
+     candidates = QUESTIONS_DB.filter(q => q.topic === topic);
   }
   
-  // Strict Fallback Logic
-  if (candidates.length === 0) {
-    // If specific topic candidates are missing (e.g. DB incomplete for that topic)
-    if (topic !== Topic.MIXED) {
-         // Try to find ANY question of that topic
-         candidates = QUESTIONS_DB.filter(q => q.topic === topic);
-    }
+  // Filter based on Difficulty (unless Competition mode, which is mixed difficulty)
+  if (!isMixedDifficulty) {
+     candidates = candidates.filter(q => q.difficulty === difficulty);
   }
 
-  // If still no match, return random from entire DB
+  // Fallback: If no specific questions found (e.g., ran out of Hard Geometry), 
+  // relax the difficulty constraint but keep the topic
+  if (candidates.length === 0 && topic !== Topic.MIXED) {
+     candidates = QUESTIONS_DB.filter(q => q.topic === topic);
+  }
+
+  // Final Fallback: If still empty, grab any question
   if (candidates.length === 0) {
     candidates = QUESTIONS_DB;
   }
 
+  // Select random question from candidates
   const randomIndex = Math.floor(Math.random() * candidates.length);
   const selected = candidates[randomIndex];
 
-  // Return a shallow copy to prevent mutation of the DB object
-  return {
-    ...selected
-  };
+  // Return a copy to ensure immutability
+  return { ...selected };
 };
 
+/**
+ * Generates a fixed 25-question mock test from the database.
+ * Structure: 10 Easy, 10 Medium, 5 Hard.
+ */
 export const generateMockTest = async (): Promise<Question[]> => {
-  // Simulate setup time
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  await new Promise(resolve => setTimeout(resolve, 800));
 
-  const shuffle = (array: Question[]) => array.sort(() => 0.5 - Math.random());
+  const shuffle = (array: Question[]) => [...array].sort(() => 0.5 - Math.random());
 
   const easyQs = QUESTIONS_DB.filter(q => q.difficulty === Difficulty.EASY);
   const mediumQs = QUESTIONS_DB.filter(q => q.difficulty === Difficulty.MEDIUM);
   const hardQs = QUESTIONS_DB.filter(q => q.difficulty === Difficulty.HARD);
 
-  // Requirement: 10 Easy, 10 Medium, 5 Hard (Total 25)
+  // Grab randomized subsets
+  // Fallbacks provided in case DB is small during testing
   const selectedEasy = shuffle(easyQs).slice(0, 10);
   const selectedMedium = shuffle(mediumQs).slice(0, 10);
-  const selectedHard = shuffle(hardQs).slice(0, 5);
+  
+  // Fill remaining slots if we don't have enough of a specific difficulty
+  const remainingSlots = 25 - (selectedEasy.length + selectedMedium.length);
+  const selectedHard = shuffle(hardQs).slice(0, remainingSlots);
 
-  // Combine and return. AMC 8 usually gets progressively harder.
   return [...selectedEasy, ...selectedMedium, ...selectedHard];
 };
 
+/**
+ * Generates study advice based on simple rule-based logic analysis of UserStats.
+ * No AI required.
+ */
 export const generateStudyAnalysis = async (stats: UserStats): Promise<StudyRecommendation> => {
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  await new Promise(resolve => setTimeout(resolve, 600));
 
-  // Filter out MIXED from topic analysis
+  // 1. Identify Weakest Topics (excluding Mixed)
   const topics = Object.values(Topic).filter(t => t !== Topic.MIXED);
   
-  // Sort topics by mastery score
-  const sortedTopics = topics.sort((a, b) => {
+  // Sort by mastery score (ascending)
+  const sortedByMastery = topics.sort((a, b) => {
     return (stats.masteryByTopic[a] || 0) - (stats.masteryByTopic[b] || 0);
   });
 
-  // Weakest 2
-  const focusAreas = sortedTopics.slice(0, 2);
+  const focusAreas = sortedByMastery.slice(0, 2); // Bottom 2
   
-  // Strongest 2 (only if mastery > 40)
-  const strengthAreas = sortedTopics
-    .filter(t => (stats.masteryByTopic[t] || 0) > 40)
-    .slice(-2)
-    .reverse();
+  // 2. Identify Strongest Topics (only if mastery > 30)
+  const strengthAreas = sortedByMastery
+    .filter(t => (stats.masteryByTopic[t] || 0) > 30)
+    .reverse()
+    .slice(0, 2);
 
-  // Generate rule-based advice with trend analysis
+  // 3. Generate Rule-Based Advice
   let advice = "";
   const totalSolved = stats.total;
   const accuracy = totalSolved > 0 ? (stats.correct / totalSolved) : 0;
   
-  // Trend Analysis: Compare last 10 vs overall
-  const history = stats.history;
+  // Trend Analysis: Last 10 attempts
+  const history = stats.history || [];
   const last10 = history.slice(-10);
   const last10Count = last10.length;
   const last10Correct = last10.filter(h => h.correct).length;
   const last10Accuracy = last10Count > 0 ? (last10Correct / last10Count) : 0;
 
   if (totalSolved < 5) {
-    advice = "You're just getting started! Try 'Mixed Practice' to explore all types of problems.";
-  } else if (totalSolved >= 10) {
-      // Analyze Trend
-      if (last10Accuracy > accuracy + 0.15) {
-          advice = `You're on a roll! Your recent accuracy (${Math.round(last10Accuracy * 100)}%) is significantly higher than your average. You're ready for harder problems.`;
-      } else if (last10Accuracy < accuracy - 0.15) {
-          advice = `You've hit a rough patch recently (${Math.round(last10Accuracy * 100)}% accuracy). Consider reviewing your Mistake Log before moving on.`;
-      } else if (accuracy < 0.4) {
-          advice = "Don't worry about errors. Focus on understanding the 'Why' in the solution for every mistake you make.";
-      } else if (accuracy > 0.8) {
-          advice = "Your consistency is fantastic! It's time to challenge yourself with Competition Level problems.";
-      } else {
-          advice = `Consistent practice is key. You are doing well in ${strengthAreas[0] || 'general math'}, so try to boost your ${focusAreas[0]} skills next.`;
-      }
+    advice = "Welcome! Start by exploring 'Mixed Practice' to gauge your baseline skills across all topics.";
+  } else if (last10Accuracy > accuracy + 0.15 && totalSolved > 10) {
+    advice = `You're improving rapidly! Your recent accuracy (${Math.round(last10Accuracy * 100)}%) is much higher than your average. Consider trying Hard difficulty.`;
+  } else if (last10Accuracy < accuracy - 0.15 && totalSolved > 10) {
+    advice = `You've hit a bumpy patch recently. It might be helpful to review your Mistake Log before solving new problems.`;
+  } else if (accuracy > 0.8) {
+    advice = `Your fundamental skills are excellent. It is time to challenge yourself with Competition Mode or Hard difficulty problems.`;
+  } else if (focusAreas.length > 0) {
+    advice = `Your overall consistency is good. To reach the next level, focus your efforts on ${focusAreas[0]} problems.`;
   } else {
-     // Between 5 and 10 problems
-     advice = `Keep going! Try to focus on ${focusAreas[0]} problems to build a strong foundation.`;
+    advice = "Keep practicing! Consistency is the key to mastering AMC 8 concepts.";
   }
 
-  const milestones = [
-    { limit: 10, text: "Complete 10 Problems" },
-    { limit: 25, text: "Reach Level 5" },
-    { limit: 50, text: "Master 1 Topic" },
-    { limit: 100, text: "AMC 8 Veteran Status" }
-  ];
-  
-  const nextMilestone = milestones.find(m => stats.total < m.limit)?.text || "Maintain Excellence";
+  // 4. Determine Next Milestone
+  let nextMilestone = "Complete 10 Problems";
+  if (stats.total >= 10) nextMilestone = "Reach Level 5";
+  if (stats.level >= 5) nextMilestone = "Solve 50 Problems";
+  if (stats.total >= 50) nextMilestone = "Master 1 Topic (100%)";
+  if (Object.values(stats.masteryByTopic).some(s => s >= 100)) nextMilestone = "AMC 8 Champion";
 
   return {
     focusAreas,
