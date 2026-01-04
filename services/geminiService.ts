@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+
 import { Difficulty, Topic, Question, UserStats, StudyRecommendation } from '../types';
 
 const getClient = () => {
